@@ -117,7 +117,7 @@ if ( table == 'VANKIOSKMEDIA'):
                os.remove(filename)
 
            #updating database
-         #  querystring = "UPDATE ODSDADM.VANKIOSKMEDIA set CUSTOMERIMGURL ='"+filename+"' WHERE CUSTOMERID = '"+str(customerId)+"' and ID ='"+str(ID)+"' and CUSTOMERIMGID = '"+str(customerImgId) +"'"
+           querystring = "UPDATE ODSDADM.VANKIOSKMEDIA set CUSTOMERIMGURL ='"+filename+"' WHERE CUSTOMERID = '"+str(customerId)+"' and ID ='"+str(ID)+"' and CUSTOMERIMGID = '"+str(customerImgId) +"'"
            print "Updating the DB -7"
            cursor.execute(querystring)
     print('-------------end for table1-----------')
