@@ -8,24 +8,22 @@ from random import randint
 #all the os.environ values are the environment variables
 newVar = os.getcwd()
 staticPath = newVar + '/blobdata' #change it to the Jenkins job path
-print staticPath
 dbUsername = os.environ['dbUsername']
-print dbUsername
 password = os.environ['password']
 host = os.environ['host']
-print host
 port = '1521'
 sid = os.environ['sid']
-print sid
+
+if os.environ.get('schema') is not None:
+    schema = os.environ['schema'] + "."
+else:
+    schema = ""
 
 #optional s3 credentials
-if os.environ.get('accessKeyId') is not None:
+if (os.environ.get('accessKeyId') and os.environ.get('secretAccessKey') and os.environ.get('bucketname')) is not None:
     accessKeyId     = os.environ['accessKeyId']
-    print accessKeyId
     secretAccessKey = os.environ['secretAccessKey']
-    print secretAccessKey
     bucketname      = os.environ['bucketname']
-    print bucketname
 else:
     accessKeyId = "null"
     secretAccessKey = "null"
@@ -42,36 +40,43 @@ args = sys.argv
 #-- check if required attribute is passed----
 if ( len(args) >=2 ):
     table = args[1]
-    print "this is the table name" + str(table)
 else:
     print('Required Attribute table missing')
     sys.exit()
 
 if( len(args) >=3 ):
     fromdate = args[2]
-    print fromdate
 else:
     print('Required Attribute From date missing')
     sys.exit()
 
 if ( len(args) >=4 ):
     todate = args[3]
-    print todate
 else:
     print('Required Attribute To Date missing')
     sys.exit()
+if ( len(args)>=5):
+    dbAction = args[4]
+    if(dbAction == 'Y'):
+        updateDB = "yes"
+    else:
+        updateDB = "null"
+else:
+    print """Required attribute update DB flag mission. Give a Y or N.
+ Y - For updating the DB URL column with File name
+ N - For No."""
+    sys.exit()
 
 
+#connection = cx_Oracle.connect(dbUsername+'/'+password+'@'+host+':'+port+'/'+sid)
 connection = cx_Oracle.connect(dbUsername+'/'+password+'@'+host+':'+port+'/'+sid)
-print "DB connection - 1"
 cursor = connection.cursor()
 
 #----------------------1st table ------------------#
 if ( table == 'VANKIOSKMEDIA'):
     print('---------------table1 start----------')
     # getting data between dates #
-    querystring = "select * from ODSDADM.VANKIOSKMEDIA WHERE DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') AND CUSTOMERIMGURL is null"
-    print "Queried the table -2"
+    querystring = "select * from "+schema+"VANKIOSKMEDIA WHERE DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') AND CUSTOMERIMGURL is null"
     cursor.execute(querystring)
     data = cursor.fetchall()
     for row in data :
@@ -80,15 +85,13 @@ if ( table == 'VANKIOSKMEDIA'):
         datestamp = row[1]
 
         #GET BLOB DATA BECAUSE OF ERROR IN FETCHALL()
-        queryForBlog = "select CUSTOMERIMG from ODSDADM.VANKIOSKMEDIA WHERE DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') AND CUSTOMERIMGURL is null AND CUSTOMERID ='"+str(customerId)+"' and CUSTOMERIMGID = '"+str(customerImgId) +"'"
-        print "Queried for BLOB - 3"
+        queryForBlog = "select CUSTOMERIMG from "+schema+"VANKIOSKMEDIA WHERE DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') AND CUSTOMERIMGURL is null AND CUSTOMERID ='"+str(customerId)+"' and CUSTOMERIMGID = '"+str(customerImgId) +"'"
         cursor.execute(queryForBlog)
         blobData = cursor.fetchone()
         blobFile = blobData[0]
 
         ID = row[5]
-        query = "select VANSTOREID FROM ODSDADM.VANCUSTOMERENGAGEMENT WHERE CUSTOMERID = "+str(customerId)+" AND ROWNUM =1"
-        print "VAN Store id query -4"
+        query = "select VANSTOREID FROM "+schema+"VANCUSTOMERENGAGEMENT WHERE CUSTOMERID = "+str(customerId)+" AND ROWNUM =1"
         cursor.execute(query)
         stores = cursor.fetchone()
         storeId = stores[0]
@@ -106,27 +109,25 @@ if ( table == 'VANKIOSKMEDIA'):
 
            #uploading file to s3
            if accessKeyId != "null":
-               print "Connection to s3 -5"
                conn = tinys3.Connection(accessKeyId,secretAccessKey,tls=tlsValue)
                f = open(path,'rb')
                uploadFlag  = conn.upload(filename,f,bucketname)
                if(uploadFlag.status_code != 200):
                    print('file was not upload to s3 because of some error for customerid ='+str(row[0])+' the status code is '+str(uploadFlag.status_code))
                    sys.exit()
-               print "Removing the file -6"   
                os.remove(filename)
 
            #updating database
-           querystring = "UPDATE ODSDADM.VANKIOSKMEDIA set CUSTOMERIMGURL ='"+filename+"' WHERE CUSTOMERID = '"+str(customerId)+"' and ID ='"+str(ID)+"' and CUSTOMERIMGID = '"+str(customerImgId) +"'"
-           print "Updating the DB -7"
-           cursor.execute(querystring)
+           if updateDB != "null":
+               querystring = "UPDATE "+schema+"VANKIOSKMEDIA set CUSTOMERIMGURL ='"+filename+"' WHERE CUSTOMERID = '"+str(customerId)+"' and ID ='"+str(ID)+"' and CUSTOMERIMGID = '"+str(customerImgId) +"'"
+               cursor.execute(querystring)
     print('-------------end for table1-----------')
 
 
 #--------------------2nd table -----------------------#
 if(table == 'VANBENEFITSPLUSSTORAGE' ):
     print('--------------table2 start-------------')
-    querystring = "select * from ODSDADM.VANBENEFITSPLUSSTORAGE  WHERE DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') AND BENEFITSPLUSUNSIGNEDURL is null AND BENEFITSPLUSSIGNEDURL is null"
+    querystring = "select * from "+schema+"VANBENEFITSPLUSSTORAGE  WHERE DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') AND BENEFITSPLUSUNSIGNEDURL is null AND BENEFITSPLUSSIGNEDURL is null"
     cursor.execute(querystring)
 
     #-- getting data for 2nd table #
@@ -135,18 +136,18 @@ if(table == 'VANBENEFITSPLUSSTORAGE' ):
         customerId   = row[0]
 
         #---unsigned blob data getting ---#
-        queryForBlog = "select BENEFITSPLUSUNSIGNED from ODSDADM.VANBENEFITSPLUSSTORAGE  WHERE DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') AND BENEFITSPLUSUNSIGNEDURL is null AND BENEFITSPLUSSIGNEDURL is null AND CUSTOMERID = '"+str(customerId)+"'"
+        queryForBlog = "select BENEFITSPLUSUNSIGNED from "+schema+"VANBENEFITSPLUSSTORAGE  WHERE DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') AND BENEFITSPLUSUNSIGNEDURL is null AND BENEFITSPLUSSIGNEDURL is null AND CUSTOMERID = '"+str(customerId)+"'"
         cursor.execute(queryForBlog)
         blobData     = cursor.fetchone()
         unsignedBlob = blobData[0]
 
         #---signed blob data getting --#
-        queryForBlog = "select BENEFITSPLUSSIGNED from ODSDADM.VANBENEFITSPLUSSTORAGE  WHERE DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') AND BENEFITSPLUSUNSIGNEDURL is null AND BENEFITSPLUSSIGNEDURL is null AND CUSTOMERID = '"+str(customerId)+"'"
+        queryForBlog = "select BENEFITSPLUSSIGNED from "+schema+"VANBENEFITSPLUSSTORAGE  WHERE DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') AND BENEFITSPLUSUNSIGNEDURL is null AND BENEFITSPLUSSIGNEDURL is null AND CUSTOMERID = '"+str(customerId)+"'"
         cursor.execute(queryForBlog)
         blobData     = cursor.fetchone()
         signedBlob   = blobData[0]
 
-        query = "select VANSTOREID FROM ODSDADM.VANCUSTOMERENGAGEMENT WHERE CUSTOMERID = "+str(customerId)+" AND ROWNUM =1"
+        query = "select VANSTOREID FROM "+schema+"VANCUSTOMERENGAGEMENT WHERE CUSTOMERID = "+str(customerId)+" AND ROWNUM =1"
         cursor.execute(query)
         stores = cursor.fetchone()
         storeId = stores[0]
@@ -171,8 +172,9 @@ if(table == 'VANBENEFITSPLUSSTORAGE' ):
                 os.remove(unsignedFilename)
 
             #updating url in database
-            querystring = "UPDATE ODSDADM.VANBENEFITSPLUSSTORAGE set BENEFITSPLUSUNSIGNEDURL ='"+unsignedFilename+"' where CUSTOMERID = '"+str(customerId)+"'"
-            cursor.execute(querystring)
+            if updateDB != "null":
+                querystring = "UPDATE "+schema+"VANBENEFITSPLUSSTORAGE set BENEFITSPLUSUNSIGNEDURL ='"+unsignedFilename+"' where CUSTOMERID = '"+str(customerId)+"'"
+                cursor.execute(querystring)
 
         if not signedBlob:
                 print('signedblob data not found for customerid = '+str( customerId ) )
@@ -194,32 +196,33 @@ if(table == 'VANBENEFITSPLUSSTORAGE' ):
                 os.remove(signedFilename)
 
             #updating url in database
-            querystring = "UPDATE ODSDADM.VANBENEFITSPLUSSTORAGE set BENEFITSPLUSSIGNEDURL ='"+signedFilename+"' where CUSTOMERID = '"+str(customerId)+"'"
-            cursor.execute(querystring)
+            if updateDB != "null":
+                querystring = "UPDATE "+schema+"VANBENEFITSPLUSSTORAGE set BENEFITSPLUSSIGNEDURL ='"+signedFilename+"' where CUSTOMERID = '"+str(customerId)+"'"
+                cursor.execute(querystring)
 
     print('-------------end for table2--------------')
 
 #---------------3rd table -------------#
 if(table == 'VANCUSTOMERAGREEMENT' ):
         print('--------------table3 start-------------')
-        querystring = "select * from ODSDADM.VANCUSTOMERAGREEMENT where DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') and  UNSIGNEDDOCURL  is null AND SIGNEDDOCURL  is null"
+        querystring = "select * from "+schema+"VANCUSTOMERAGREEMENT where DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') and  UNSIGNEDDOCURL  is null AND SIGNEDDOCURL  is null"
         cursor.execute(querystring)
         data = cursor.fetchall()
         for row in data:
                 engagementId = row[0]
                 doctype      = row[1]
 
-                queryForBlob = "select UNSIGNEDDOC from ODSDADM.VANCUSTOMERAGREEMENT where DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') and  UNSIGNEDDOCURL  is null AND SIGNEDDOCURL  is null AND ENGAGEMENTID = '"+str(engagementId)+"' AND DOCTYPE ='"+str(doctype)+"'"
+                queryForBlob = "select UNSIGNEDDOC from "+schema+"VANCUSTOMERAGREEMENT where DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') and  UNSIGNEDDOCURL  is null AND SIGNEDDOCURL  is null AND ENGAGEMENTID = '"+str(engagementId)+"' AND DOCTYPE ='"+str(doctype)+"'"
                 cursor.execute(queryForBlob)
                 blobData     = cursor.fetchone()
                 unsignedDoc  = blobData[0]
 
-                queryForBlob = "select SIGNEDDOC from ODSDADM.VANCUSTOMERAGREEMENT where DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') and  UNSIGNEDDOCURL  is null AND SIGNEDDOCURL  is null AND ENGAGEMENTID = '"+str(engagementId)+"' AND DOCTYPE ='"+str(doctype)+"'"
+                queryForBlob = "select SIGNEDDOC from "+schema+"VANCUSTOMERAGREEMENT where DATESTAMP BETWEEN TO_DATE('"+fromdate+"','YYYY/MM/DD') AND TO_DATE('"+todate+"','YYYY/MM/DD') and  UNSIGNEDDOCURL  is null AND SIGNEDDOCURL  is null AND ENGAGEMENTID = '"+str(engagementId)+"' AND DOCTYPE ='"+str(doctype)+"'"
                 cursor.execute(queryForBlob)
                 blobData     = cursor.fetchone()
                 signedDoc    = blobData[0]
 
-                query = "select VANSTOREID from ODSDADM.VANCUSTOMERENGAGEMENT where ENGAGEMENTID = "+str(engagementId)+" AND ROWNUM =1"
+                query = "select VANSTOREID from "+schema+"VANCUSTOMERENGAGEMENT where ENGAGEMENTID = "+str(engagementId)+" AND ROWNUM =1"
                 cursor.execute(query)
                 stores = cursor.fetchone()
                 storeId      = stores[0]
@@ -240,8 +243,9 @@ if(table == 'VANCUSTOMERAGREEMENT' ):
                                     sys.exit()
 
                             os.remove(unsignedFilename)
-                        querystring = "UPDATE ODSDADM.VANCUSTOMERAGREEMENT set UNSIGNEDDOCURL ='"+unsignedFilename+"' where ENGAGEMENTID = '"+str(engagementId)+"' AND DOCTYPE ='"+str(doctype)+"'"
-                        cursor.execute(querystring)
+                        if updateDB != "null":  
+                            querystring = "UPDATE "+schema+"VANCUSTOMERAGREEMENT set UNSIGNEDDOCURL ='"+unsignedFilename+"' where ENGAGEMENTID = '"+str(engagementId)+"' AND DOCTYPE ='"+str(doctype)+"'"
+                            cursor.execute(querystring)
 
                 if not signedDoc:
                         print('signedDoc Blob not found for engagement id = '+str(engagementId) )
@@ -259,8 +263,9 @@ if(table == 'VANCUSTOMERAGREEMENT' ):
                                     print('signedDoc blob file was not upload to s3 because of some error for engagement id = '+str(engagementId)+' the status code is '+str(uploadFlag.status_code))
                                     sys.exit()
                             os.remove(signedFilename)
-                        querystring = "UPDATE ODSDADM.VANCUSTOMERAGREEMENT set SIGNEDDOCURL ='"+signedFilename+"' where ENGAGEMENTID = '"+str(engagementId)+"' AND DOCTYPE ='"+str(doctype)+"'"
-                        cursor.execute(querystring)
+                        if updateDB != "null":
+                            querystring = "UPDATE "+schema+"VANCUSTOMERAGREEMENT set SIGNEDDOCURL ='"+signedFilename+"' where ENGAGEMENTID = '"+str(engagementId)+"' AND DOCTYPE ='"+str(doctype)+"'"
+                            cursor.execute(querystring)
         print('-------------end for table3--------------')
 
 connection.commit()
