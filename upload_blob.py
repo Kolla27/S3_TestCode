@@ -7,7 +7,7 @@ from random import randint
 
 #all the os.environ values are the environment variables
 newVar = os.getcwd()
-staticPath = newVar + '/blobdata' #change it to the Jenkins job path
+staticPath = newVar + '/blobdata/' #change it to the Jenkins job path
 dbUsername = os.environ['dbUsername']
 password = os.environ['password']
 host = os.environ['host']
