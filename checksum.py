@@ -7,8 +7,8 @@ import boto3
 import botocore
 
 
-accessKeyId     = os.environ['accessKeyId']
-secretAccessKey = os.environ['secretAccessKey']
+#accessKeyId     = os.environ['accessKeyId']
+#secretAccessKey = os.environ['secretAccessKey']
 bucketname      = os.environ['bucketname']
 tlsValue        = True
 
