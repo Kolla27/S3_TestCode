@@ -71,7 +71,7 @@ def dif_checksum(d1, d2):
             print i   
 
 for item1 in fileList:
-    new_hash_value = s3_md5sum('racrdstestankurbucket', item1)
+    new_hash_value = s3_md5sum(bucketname, item1)
     hash_mapper_s3[item1] = new_hash_value
 
 
