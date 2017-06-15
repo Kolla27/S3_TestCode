@@ -13,7 +13,7 @@ bucketname      = os.environ['bucketname']
 tlsValue        = True
 
 newVar = os.getcwd()
-mypath = newVar + '/blobdata/' #change it to the Jenkins job path
+mypath = newVar + '/' #change it to the Jenkins job path
 
 #mypath = '/home/ec2-user/python_code'
 fileList = [f for f in listdir(mypath) if isfile(join(mypath, f))]
