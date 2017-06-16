@@ -77,7 +77,7 @@ for item1 in fileList:
 
 #print hash_mapper_s3
 
-#s3_md5sum('racrdstestankurbucket', '159863_356_9222_1-SIGN.png')
+#s3_md5sum('jenkinstestkolla', '159863_356_9222_1-SIGN.png')
 
 dif_checksum(hash_mapper_local, hash_mapper_s3)
 
